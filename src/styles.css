@@ -1,19 +1,19 @@
 :root {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-tertiary: #0f3460;
-  --bg-surface: #1e1e3a;
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0b0;
-  --text-muted: #606070;
-  --accent: #7c8cf8;
-  --accent-dim: #5a6ad4;
-  --border: #2a2a4a;
-  --handle: #3a3a5a;
-  --handle-hover: #5a5a8a;
-  --tab-active: #1a1a2e;
-  --tab-inactive: #12122a;
-  --unsaved: #f0a050;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --bg-surface: #141414;
+  --text-primary: #d4d4d4;
+  --text-secondary: #888888;
+  --text-muted: #505050;
+  --accent: #999999;
+  --accent-dim: #666666;
+  --border: #1e1e1e;
+  --handle: #282828;
+  --handle-hover: #3a3a3a;
+  --tab-active: #0a0a0a;
+  --tab-inactive: #0e0e0e;
+  --unsaved: #d4a050;
   --sidebar-width: 200px;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", ui-monospace, monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -267,7 +267,7 @@ html, body {
 #editor-container .milkdown h2 { font-size: 22px; margin: 20px 0 10px; font-weight: 600; }
 #editor-container .milkdown h3 { font-size: 18px; margin: 16px 0 8px; font-weight: 600; }
 #editor-container .milkdown p { margin: 8px 0; }
-#editor-container .milkdown a { color: var(--accent); text-decoration: none; }
+#editor-container .milkdown a { color: #b0b0b0; text-decoration: underline; }
 #editor-container .milkdown a:hover { text-decoration: underline; }
 
 #editor-container .milkdown code {

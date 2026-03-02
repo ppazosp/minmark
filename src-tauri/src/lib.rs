@@ -18,13 +18,18 @@ pub fn run() {
             let handle = app.handle().clone();
 
             // Determine working directory: first CLI arg or cwd
+            // When running via `tauri dev`, cargo starts in src-tauri/ — go up one level
             let cwd = std::env::args()
                 .nth(1)
                 .unwrap_or_else(|| {
-                    std::env::current_dir()
-                        .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                        .to_string_lossy()
-                        .to_string()
+                    let dir = std::env::current_dir()
+                        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    let dir = if dir.ends_with("src-tauri") {
+                        dir.parent().unwrap_or(&dir).to_path_buf()
+                    } else {
+                        dir
+                    };
+                    dir.to_string_lossy().to_string()
                 });
 
             // Spawn PTY
