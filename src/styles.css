@@ -331,7 +331,6 @@ html, body {
   gap: 8px;
 }
 
-#quickopen-list li:hover,
 #quickopen-list li.selected {
   background: var(--bg-tertiary);
   color: var(--text-primary);
@@ -345,6 +344,15 @@ html, body {
   color: var(--text-muted);
   font-size: 11px;
   margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+#quickopen-list li .file-name {
+  flex-shrink: 0;
 }
 
 /* Scrollbar */

@@ -8,11 +8,16 @@ interface FileEntry {
 
 // --- Cache ---
 let cachedFiles: FileEntry[] | null = null;
+let homeDir = "";
 
 async function getFiles(): Promise<FileEntry[]> {
   if (cachedFiles) return cachedFiles;
   try {
     const folders = await invoke<string[]>("get_search_folders");
+    if (!homeDir && folders.length > 0) {
+      const m = folders[0].match(/^(\/Users\/[^/]+)/);
+      if (m) homeDir = m[1];
+    }
     cachedFiles = await invoke<FileEntry[]>("search_files", { folders });
   } catch {
     cachedFiles = [];
@@ -32,6 +37,7 @@ let onSelect: (path: string) => void = () => {};
 
 // --- Debounce ---
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let usingKeyboard = false;
 
 export function initQuickOpen(selectCallback: (path: string) => void) {
   onSelect = selectCallback;
@@ -56,9 +62,11 @@ export function initQuickOpen(selectCallback: (path: string) => void) {
       closeQuickOpen();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
+      usingKeyboard = true;
       moveSelection(Math.min(selectedIndex + 1, filteredFiles.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      usingKeyboard = true;
       moveSelection(Math.max(selectedIndex - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
@@ -162,7 +170,8 @@ function renderList() {
 
     const pathSpan = document.createElement("span");
     pathSpan.className = "file-path";
-    pathSpan.textContent = file.path;
+    const dir = file.path.substring(0, file.path.lastIndexOf("/"));
+    pathSpan.textContent = dir.replace(homeDir, "~");
     li.appendChild(pathSpan);
 
     li.addEventListener("click", () => {
@@ -171,7 +180,11 @@ function renderList() {
     });
 
     li.addEventListener("mouseenter", () => {
-      moveSelection(i);
+      if (!usingKeyboard) moveSelection(i);
+    });
+
+    li.addEventListener("mousemove", () => {
+      usingKeyboard = false;
     });
 
     list.appendChild(li);
