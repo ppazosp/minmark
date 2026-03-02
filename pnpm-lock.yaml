@@ -24,14 +24,14 @@ importers:
         specifier: ^2
         version: 2.10.1
       '@xterm/addon-fit':
-        specifier: ^0.10.0
-        version: 0.10.0(@xterm/xterm@5.5.0)
+        specifier: 0.12.0-beta.167
+        version: 0.12.0-beta.167(@xterm/xterm@6.1.0-beta.167)
       '@xterm/addon-webgl':
-        specifier: ^0.18.0
-        version: 0.18.0(@xterm/xterm@5.5.0)
+        specifier: 0.20.0-beta.166
+        version: 0.20.0-beta.166(@xterm/xterm@6.1.0-beta.167)
       '@xterm/xterm':
-        specifier: ^5.5.0
-        version: 5.5.0
+        specifier: 6.1.0-beta.167
+        version: 6.1.0-beta.167
       katex:
         specifier: ^0.16.0
         version: 0.16.33
@@ -768,18 +768,18 @@ packages:
   '@vue/shared@3.5.29':
     resolution: {integrity: sha512-w7SR0A5zyRByL9XUkCfdLs7t9XOHUyJ67qPGQjOou3p6GvBeBW+AVjUUmlxtZ4PIYaRvE+1LmK44O4uajlZwcg==}
 
-  '@xterm/addon-fit@0.10.0':
-    resolution: {integrity: sha512-UFYkDm4HUahf2lnEyHvio51TNGiLK66mqP2JoATy7hRZeXaGMRDr00JiSF7m63vR5WKATF605yEggJKsw0JpMQ==}
+  '@xterm/addon-fit@0.12.0-beta.167':
+    resolution: {integrity: sha512-yXvMk+/In7Khgxlm7VJnFSE9HAeK3aa37xCpWbkZmCciESR0IFbb3mXitUr09Bbq2KU4B9pHtqu7CzsNG1U+GA==}
     peerDependencies:
-      '@xterm/xterm': ^5.0.0
+      '@xterm/xterm': ^6.1.0-beta.167
 
-  '@xterm/addon-webgl@0.18.0':
-    resolution: {integrity: sha512-xCnfMBTI+/HKPdRnSOHaJDRqEpq2Ugy8LEj9GiY4J3zJObo3joylIFaMvzBwbYRg8zLtkO0KQaStCeSfoaI2/w==}
+  '@xterm/addon-webgl@0.20.0-beta.166':
+    resolution: {integrity: sha512-SZmz7HDeSMc4O0++x14ma/UWbK/0Ea8AikHw6V5ex/shjrjwbik7Uf2n8FfG2zMYNgBakvCy/SbwDPtQN+IbRQ==}
     peerDependencies:
-      '@xterm/xterm': ^5.0.0
+      '@xterm/xterm': ^6.1.0-beta.167
 
-  '@xterm/xterm@5.5.0':
-    resolution: {integrity: sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==}
+  '@xterm/xterm@6.1.0-beta.167':
+    resolution: {integrity: sha512-OOG2gcH9OhEjY+KW3X2s30e1KzaRlynhkF9/oKfb2PNUJBYUdXeww4YAugrz7+nLP8KxCeOdSJrq7VvRzyZrwA==}
 
   acorn@8.16.0:
     resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
@@ -2462,15 +2462,15 @@ snapshots:
 
   '@vue/shared@3.5.29': {}
 
-  '@xterm/addon-fit@0.10.0(@xterm/xterm@5.5.0)':
+  '@xterm/addon-fit@0.12.0-beta.167(@xterm/xterm@6.1.0-beta.167)':
     dependencies:
-      '@xterm/xterm': 5.5.0
+      '@xterm/xterm': 6.1.0-beta.167
 
-  '@xterm/addon-webgl@0.18.0(@xterm/xterm@5.5.0)':
+  '@xterm/addon-webgl@0.20.0-beta.166(@xterm/xterm@6.1.0-beta.167)':
     dependencies:
-      '@xterm/xterm': 5.5.0
+      '@xterm/xterm': 6.1.0-beta.167
 
-  '@xterm/xterm@5.5.0': {}
+  '@xterm/xterm@6.1.0-beta.167': {}
 
   acorn@8.16.0: {}
 

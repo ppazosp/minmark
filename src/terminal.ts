@@ -33,6 +33,7 @@ export async function initTerminal() {
   terminal = new Terminal({
     cursorBlink: true,
     fontSize: 13,
+    vtExtensions: { kittyKeyboard: true },
     fontFamily:
       '"FiraCode Nerd Font Mono", "FiraCode Nerd Font", "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", ui-monospace, monospace',
     scrollback: 5000,
@@ -80,15 +81,6 @@ export async function initTerminal() {
   // Spawn PTY with the correct initial size
   const cwd = await invoke<string>("get_cwd");
   await invoke("init_pty", { cwd, cols: terminal.cols, rows: terminal.rows });
-
-  // Shift+Enter → send ESC + CR (newline without execute)
-  terminal.attachCustomKeyEventHandler((e) => {
-    if (e.type === "keydown" && e.key === "Enter" && e.shiftKey) {
-      invoke("write_to_pty", { data: "\x1b\r" });
-      return false;
-    }
-    return true;
-  });
 
   // Forward user input to PTY
   terminal.onData(async (data) => {
