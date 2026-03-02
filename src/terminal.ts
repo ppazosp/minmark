@@ -7,15 +7,34 @@ import { listen } from "@tauri-apps/api/event";
 
 let terminal: Terminal;
 let fitAddon: FitAddon;
+let fitPending = false;
+
+function requestFit() {
+  if (!fitPending) {
+    fitPending = true;
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+      terminal.scrollToBottom();
+      fitPending = false;
+    });
+  }
+}
 
 export async function initTerminal() {
   const container = document.getElementById("terminal-container")!;
+
+  // Ensure the Nerd Font is loaded before xterm renders its canvas
+  try {
+    await document.fonts.load('13px "FiraCode Nerd Font Mono"');
+  } catch {
+    // Font not available, will fall through to next in stack
+  }
 
   terminal = new Terminal({
     cursorBlink: true,
     fontSize: 13,
     fontFamily:
-      '"SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", ui-monospace, monospace',
+      '"FiraCode Nerd Font Mono", "FiraCode Nerd Font", "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", ui-monospace, monospace',
     scrollback: 5000,
     theme: {
       background: "#0a0a0a",
@@ -56,8 +75,9 @@ export async function initTerminal() {
 
   fitAddon.fit();
 
-  // Send initial size to PTY
-  await invoke("resize_pty", { cols: terminal.cols, rows: terminal.rows });
+  // Spawn PTY with the correct initial size
+  const cwd = await invoke<string>("get_cwd");
+  await invoke("init_pty", { cwd, cols: terminal.cols, rows: terminal.rows });
 
   // Forward user input to PTY
   terminal.onData(async (data) => {
@@ -74,16 +94,11 @@ export async function initTerminal() {
     terminal.write(event.payload);
   });
 
-  // Handle container resize
-  const resizeObserver = new ResizeObserver(() => {
-    fitAddon.fit();
-  });
+  // Handle all resize sources
+  const resizeObserver = new ResizeObserver(() => requestFit());
   resizeObserver.observe(container);
-
-  // Also fit on custom pane-resize events (drag handles)
-  window.addEventListener("pane-resize", () => {
-    fitAddon.fit();
-  });
+  window.addEventListener("resize", () => requestFit());
+  window.addEventListener("pane-resize", () => requestFit());
 }
 
 export function focusTerminal() {

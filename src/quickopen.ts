@@ -1,4 +1,38 @@
-import { getAllFiles } from "./filetree";
+import { invoke } from "@tauri-apps/api/core";
+
+interface DirEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  children: DirEntry[] | null;
+}
+
+async function getAllFiles(): Promise<{ name: string; path: string }[]> {
+  try {
+    const rootPath = await invoke<string>("get_home_dir");
+    const entries = await invoke<DirEntry[]>("list_directory", {
+      path: rootPath,
+    });
+    const files: { name: string; path: string }[] = [];
+    flattenEntries(entries, files);
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+function flattenEntries(
+  entries: DirEntry[],
+  out: { name: string; path: string }[]
+) {
+  for (const entry of entries) {
+    if (entry.isDir && entry.children) {
+      flattenEntries(entry.children, out);
+    } else if (!entry.isDir) {
+      out.push({ name: entry.name, path: entry.path });
+    }
+  }
+}
 
 let isOpen = false;
 let selectedIndex = 0;
@@ -83,11 +117,19 @@ function filterFiles(query: string) {
   }
 
   getAllFiles().then((allFiles) => {
-    filteredFiles = allFiles.filter((f) => {
-      const name = f.name.toLowerCase();
-      const path = f.path.toLowerCase();
-      return fuzzyMatch(q, name) || fuzzyMatch(q, path);
-    });
+    filteredFiles = allFiles
+      .map((f) => {
+        const name = f.name.toLowerCase();
+        const path = f.path.toLowerCase();
+        let score = 0;
+        if (name === q) score = 4;
+        else if (name.startsWith(q)) score = 3;
+        else if (name.includes(q)) score = 2;
+        else if (fuzzyMatch(q, name) || fuzzyMatch(q, path)) score = 1;
+        return { ...f, score };
+      })
+      .filter((f) => f.score > 0)
+      .sort((a, b) => b.score - a.score);
     selectedIndex = 0;
     renderList();
   });
@@ -138,5 +180,11 @@ function renderList() {
     });
 
     list.appendChild(li);
+  }
+
+  // Scroll selected item into view
+  const selected = list.querySelector(".selected") as HTMLElement;
+  if (selected) {
+    selected.scrollIntoView({ block: "nearest" });
   }
 }

@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::fs;
 use std::path::Path;
 
+const MAX_DEPTH: u32 = 6;
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DirEntry {
@@ -21,7 +23,16 @@ fn should_include(path: &Path) -> bool {
     if path.is_dir() {
         return !matches!(
             name.as_ref(),
-            "node_modules" | "target" | ".git" | "dist" | "build"
+            "node_modules"
+                | "target"
+                | "dist"
+                | "build"
+                | "Library"
+                | "Applications"
+                | "Pictures"
+                | "Music"
+                | "Movies"
+                | "Public"
         );
     }
     // Only include .md files
@@ -30,7 +41,11 @@ fn should_include(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn build_tree(path: &Path) -> Option<Vec<DirEntry>> {
+fn build_tree(path: &Path, depth: u32) -> Option<Vec<DirEntry>> {
+    if depth >= MAX_DEPTH {
+        return Some(Vec::new());
+    }
+
     let entries = fs::read_dir(path).ok()?;
     let mut result: Vec<DirEntry> = Vec::new();
 
@@ -47,7 +62,7 @@ fn build_tree(path: &Path) -> Option<Vec<DirEntry>> {
             .to_string();
 
         if entry_path.is_dir() {
-            let children = build_tree(&entry_path);
+            let children = build_tree(&entry_path, depth + 1);
             // Only include dirs that contain .md files (directly or nested)
             if let Some(ref kids) = children {
                 if !kids.is_empty() {
@@ -83,7 +98,7 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntry>, String> {
     if !p.exists() {
         return Err(format!("Path does not exist: {}", path));
     }
-    build_tree(p).ok_or_else(|| "Failed to read directory".to_string())
+    build_tree(p, 0).ok_or_else(|| "Failed to read directory".to_string())
 }
 
 #[tauri::command]

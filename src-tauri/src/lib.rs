@@ -11,6 +11,11 @@ fn get_cwd(state: tauri::State<'_, WorkingDir>) -> String {
     state.0.clone()
 }
 
+#[tauri::command]
+fn get_home_dir() -> String {
+    std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -32,10 +37,8 @@ pub fn run() {
                     dir.to_string_lossy().to_string()
                 });
 
-            // Spawn PTY
-            let pty_state =
-                PtyState::spawn(handle.clone(), cwd.clone()).expect("Failed to spawn PTY");
-            app.manage(pty_state);
+            // PTY state (spawned lazily by frontend after terminal is sized)
+            app.manage(PtyState::new());
 
             // Start file watcher
             watcher::start_watcher(handle.clone(), &cwd)
@@ -51,9 +54,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_cwd,
+            get_home_dir,
             fs_ops::list_directory,
             fs_ops::read_file,
             fs_ops::write_file,
+            pty::init_pty,
             pty::write_to_pty,
             pty::resize_pty,
         ])
