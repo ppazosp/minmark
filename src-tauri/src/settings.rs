@@ -22,7 +22,7 @@ fn expand_tilde(path: &str) -> String {
 }
 
 #[tauri::command]
-pub fn get_settings_path() -> String {
+pub fn open_settings() {
     let path = config_path();
     if !path.exists() {
         if let Some(parent) = path.parent() {
@@ -30,7 +30,7 @@ pub fn get_settings_path() -> String {
         }
         let _ = fs::write(&path, "{\n  \"search_folders\": [\"~\"]\n}\n");
     }
-    path.to_string_lossy().to_string()
+    let _ = std::process::Command::new("open").arg(&path).spawn();
 }
 
 #[tauri::command]

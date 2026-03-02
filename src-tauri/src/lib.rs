@@ -42,8 +42,9 @@ pub fn run() {
             // PTY state (spawned lazily by frontend after terminal is sized)
             app.manage(PtyState::new());
 
-            // Start file watcher
-            watcher::start_watcher(handle.clone(), &cwd)
+            // Start file watcher on configured search folders
+            let watch_folders = settings::get_search_folders();
+            watcher::start_watcher(handle.clone(), &watch_folders)
                 .expect("Failed to start file watcher");
 
             // Start UDS socket listener
@@ -103,7 +104,7 @@ pub fn run() {
             fs_ops::write_file,
             fs_ops::search_files,
             settings::get_search_folders,
-            settings::get_settings_path,
+            settings::open_settings,
             pty::init_pty,
             pty::write_to_pty,
             pty::resize_pty,

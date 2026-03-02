@@ -20,9 +20,8 @@ async function init() {
     openFile(event.payload);
   });
 
-  await listen("open-settings", async () => {
-    const path = await invoke<string>("get_settings_path");
-    openFile(path);
+  await listen("open-settings", () => {
+    invoke("open_settings");
   });
 
   document.addEventListener("keydown", (e) => {

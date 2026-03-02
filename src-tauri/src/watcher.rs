@@ -4,8 +4,8 @@ use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-pub fn start_watcher(app: AppHandle, path: &str) -> Result<(), String> {
-    let watch_path = path.to_string();
+pub fn start_watcher(app: AppHandle, paths: &[String]) -> Result<(), String> {
+    let watch_paths: Vec<String> = paths.to_vec();
     let app_handle = app.clone();
 
     std::thread::spawn(move || {
@@ -48,9 +48,9 @@ pub fn start_watcher(app: AppHandle, path: &str) -> Result<(), String> {
         )
         .expect("Failed to create debouncer");
 
-        debouncer
-            .watch(Path::new(&watch_path), RecursiveMode::Recursive)
-            .expect("Failed to watch path");
+        for wp in &watch_paths {
+            let _ = debouncer.watch(Path::new(wp), RecursiveMode::Recursive);
+        }
 
         // Keep thread alive — dropping debouncer stops watching
         loop {
