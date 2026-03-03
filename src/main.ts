@@ -1,14 +1,13 @@
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { openFile, closeActiveTab, saveActiveTab, focusEditor } from "./tabs";
 import { initQuickOpen, toggleQuickOpen } from "./quickopen";
 
 async function init() {
-  initQuickOpen((path) => {
-    console.log("open:", path);
-  });
+  initQuickOpen((path) => openFile(path));
 
   await listen<string>("open-file", (event) => {
-    console.log("open-file:", event.payload);
+    openFile(event.payload);
   });
 
   await listen("open-settings", () => {
@@ -17,11 +16,20 @@ async function init() {
 
   document.addEventListener("keydown", (e) => {
     const mod = e.metaKey || e.ctrlKey;
+
     if (mod && e.key === "p") {
       e.preventDefault();
       toggleQuickOpen();
+    } else if (mod && e.key === "w") {
+      e.preventDefault();
+      closeActiveTab();
+    } else if (mod && e.key === "s") {
+      e.preventDefault();
+      saveActiveTab();
     }
   });
+
+  focusEditor();
 }
 
 init();
