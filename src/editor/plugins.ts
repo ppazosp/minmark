@@ -25,6 +25,8 @@ import {
   liftListItem,
   sinkListItem,
 } from "prosemirror-schema-list";
+import { slashPlugin } from "./slash";
+import { toolbarPlugin } from "./toolbar";
 
 // --- Input Rules ---
 
@@ -83,7 +85,7 @@ function buildInputRules(): Plugin {
 function buildKeymap() {
   const listItem = schema.nodes.list_item;
 
-  return keymap({
+  const keys: Record<string, any> = {
     "Mod-b": toggleMark(schema.marks.strong),
     "Mod-i": toggleMark(schema.marks.em),
     "Mod-e": toggleMark(schema.marks.code),
@@ -105,7 +107,22 @@ function buildKeymap() {
     "Alt-ArrowDown": joinDown,
     "Mod-[": lift,
     Escape: selectParentNode,
-  });
+  };
+
+  keys["Mod-k"] = (state: any, dispatch: any) => {
+    const { from, to } = state.selection;
+    const hasLink = state.doc.rangeHasMark(from, to, schema.marks.link);
+    if (hasLink) {
+      return toggleMark(schema.marks.link)(state, dispatch);
+    }
+    const href = prompt("URL:");
+    if (href && dispatch) {
+      return toggleMark(schema.marks.link, { href })(state, dispatch);
+    }
+    return false;
+  };
+
+  return keymap(keys);
 }
 
 // --- Build all plugins ---
@@ -118,5 +135,7 @@ export function buildPlugins(): Plugin[] {
     history(),
     dropCursor({ color: "#ffffff40" }),
     gapCursor(),
+    slashPlugin(),
+    toolbarPlugin(),
   ];
 }
