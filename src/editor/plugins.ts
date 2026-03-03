@@ -27,6 +27,8 @@ import {
 } from "prosemirror-schema-list";
 import { slashPlugin } from "./slash";
 import { toolbarPlugin } from "./toolbar";
+import { blockPlugin } from "./blocks";
+import { highlightPlugin } from "./highlight";
 
 // --- Input Rules ---
 
@@ -137,5 +139,7 @@ export function buildPlugins(): Plugin[] {
     gapCursor(),
     slashPlugin(),
     toolbarPlugin(),
+    blockPlugin(),
+    highlightPlugin(),
   ];
 }
