@@ -54,6 +54,7 @@ function switchTab(path: string) {
   syncCurrentTabContent();
 
   activeTabPath = path;
+  updateUnsavedIndicator();
 
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
@@ -85,11 +86,22 @@ function switchTab(path: string) {
   }
 }
 
+function updateUnsavedIndicator() {
+  const el = document.getElementById("unsaved-indicator")!;
+  const tab = tabs.find((t) => t.path === activeTabPath);
+  if (tab?.unsaved) {
+    el.classList.remove("hidden");
+  } else {
+    el.classList.add("hidden");
+  }
+}
+
 function onContentChanged(path: string, markdown: string) {
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
   tab.content = markdown;
   tab.unsaved = true;
+  updateUnsavedIndicator();
 }
 
 export async function reloadTabFromDisk(path: string) {
@@ -130,6 +142,7 @@ export async function saveActiveTab() {
   try {
     await invoke("write_file", { path: tab.path, content: tab.content });
     tab.unsaved = false;
+    updateUnsavedIndicator();
   } catch (e) {
     console.error("Failed to save:", e);
   }
@@ -152,6 +165,7 @@ function closeTab(path: string) {
       switchTab(tabs[newIdx].path);
     } else {
       activeTabPath = null;
+      updateUnsavedIndicator();
       destroyEditor();
       const container = document.getElementById("editor-container")!;
       container.classList.remove("visible");
@@ -295,6 +309,7 @@ export function initSourceEditor() {
     if (tab) {
       tab.content = source.value;
       tab.unsaved = true;
+      updateUnsavedIndicator();
     }
   });
 }

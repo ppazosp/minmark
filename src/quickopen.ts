@@ -57,7 +57,13 @@ let usingKeyboard = false;
 export function initQuickOpen(selectCallback: (path: string) => void) {
   onSelect = selectCallback;
 
-  listen("fs-changed", invalidateCache);
+  listen("fs-changed", () => {
+    invalidateCache();
+    if (isOpen) {
+      const input = document.getElementById("quickopen-input") as HTMLInputElement;
+      filterFiles(input.value);
+    }
+  });
 
   const overlay = document.getElementById("quickopen-overlay")!;
   const input = document.getElementById("quickopen-input") as HTMLInputElement;

@@ -42,6 +42,21 @@ html, body {
   width: 100vw;
 }
 
+/* Unsaved indicator */
+#unsaved-indicator {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--unsaved);
+  z-index: 100;
+  pointer-events: none;
+}
+
+#unsaved-indicator.hidden { display: none; }
+
 /* File switcher overlay (Cmd+T) */
 #switcher-overlay {
   position: fixed;
