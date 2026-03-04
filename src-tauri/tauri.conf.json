@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pane",
+  "productName": "Minmark",
   "version": "0.1.0",
-  "identifier": "com.pane.dev",
+  "identifier": "com.minmark.dev",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
@@ -13,11 +13,12 @@
     "windows": [
       {
         "label": "main",
-        "title": "Pane",
+        "title": "Minmark",
         "width": 1200,
         "height": 800,
         "resizable": true,
-        "decorations": true
+        "decorations": true,
+        "visible": false
       }
     ],
     "security": {
@@ -31,6 +32,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown", "mdown", "mkd", "mdx"],
+        "mimeType": "text/markdown",
+        "role": "Editor"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -40,7 +48,6 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.14",
-      "infoPlistPath": "Info.plist.patch",
       "files": {
         "Resources/Assets.car": "assets/Assets.car"
       }

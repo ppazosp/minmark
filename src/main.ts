@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openFile, closeActiveTab, saveActiveTab, reloadTabFromDisk, focusEditor, toggleSwitcher, handleSwitcherKeydown, handleSwitcherKeyup, toggleSourceMode, initSourceEditor } from "./tabs";
 import { initQuickOpen, toggleQuickOpen } from "./quickopen";
 import "prosemirror-view/style/prosemirror.css";
@@ -84,6 +85,12 @@ async function init() {
   document.addEventListener("keyup", (e) => handleSwitcherKeyup(e));
 
   focusEditor();
+
+  // Signal backend that frontend listeners are registered
+  await invoke("frontend_ready");
+
+  // Show window after frontend is ready (prevents white flash)
+  await getCurrentWindow().show();
 }
 
 init();

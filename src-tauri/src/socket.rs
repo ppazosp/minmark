@@ -2,7 +2,9 @@ use serde::Deserialize;
 use std::io::Read;
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Deserialize)]
 struct SocketCommand {
@@ -11,14 +13,17 @@ struct SocketCommand {
 }
 
 fn socket_path() -> PathBuf {
-    dirs_next().unwrap_or_else(|| PathBuf::from("/tmp")).join(".pane.sock")
+    dirs_next().unwrap_or_else(|| PathBuf::from("/tmp")).join(".minmark.sock")
 }
 
 fn dirs_next() -> Option<PathBuf> {
     std::env::var("HOME").ok().map(PathBuf::from)
 }
 
-pub fn start_socket_listener(app: AppHandle) {
+/// Shared flag so socket listener knows the frontend is ready.
+pub struct FrontendReady(pub Arc<AtomicBool>);
+
+pub fn start_socket_listener(app: AppHandle, ready: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         let sock_path = socket_path();
 
@@ -41,7 +46,25 @@ pub fn start_socket_listener(app: AppHandle) {
                         if let Ok(cmd) = serde_json::from_str::<SocketCommand>(&buf) {
                             if cmd.cmd == "open" {
                                 if let Some(path) = cmd.path {
+                                    // Wait for frontend to be ready before emitting
+                                    let start = std::time::Instant::now();
+                                    while !ready.load(Ordering::Relaxed) {
+                                        if start.elapsed() > std::time::Duration::from_secs(10) {
+                                            break;
+                                        }
+                                        std::thread::sleep(std::time::Duration::from_millis(100));
+                                    }
+
                                     let _ = app.emit("open-file", &path);
+
+                                    // Small delay so frontend processes the file before showing
+                                    std::thread::sleep(std::time::Duration::from_millis(50));
+
+                                    // Show and focus the window
+                                    if let Some(w) = app.get_webview_window("main") {
+                                        let _ = w.show();
+                                        let _ = w.set_focus();
+                                    }
                                 }
                             }
                         }

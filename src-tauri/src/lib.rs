@@ -4,17 +4,37 @@ mod socket;
 mod watcher;
 
 use fs_ops::FileIndex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Emitter, Manager};
+
+struct PendingFiles(Mutex<Vec<String>>);
 
 #[tauri::command]
 fn get_cwd(state: tauri::State<'_, WorkingDir>) -> String {
     state.0.clone()
 }
 
+#[tauri::command]
+fn frontend_ready(
+    app: tauri::AppHandle,
+    ready_state: tauri::State<'_, socket::FrontendReady>,
+    pending: tauri::State<'_, PendingFiles>,
+) {
+    ready_state.0.store(true, Ordering::Relaxed);
+
+    // Flush any files that arrived before frontend was ready
+    if let Ok(mut files) = pending.0.lock() {
+        for path in files.drain(..) {
+            let _ = app.emit("open-file", &path);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -62,8 +82,13 @@ pub fn run() {
             watcher::start_watcher(handle.clone(), &watch_folders, file_index)
                 .expect("Failed to start file watcher");
 
+            // Frontend-ready flag for socket listener
+            let ready = Arc::new(AtomicBool::new(false));
+            app.manage(socket::FrontendReady(ready.clone()));
+            app.manage(PendingFiles(Mutex::new(Vec::new())));
+
             // Start UDS socket listener
-            socket::start_socket_listener(handle.clone());
+            socket::start_socket_listener(handle.clone(), ready);
 
             // Store cwd for frontend
             app.manage(WorkingDir(cwd));
@@ -74,7 +99,7 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?;
 
-            let app_submenu = SubmenuBuilder::new(app, "Pane")
+            let app_submenu = SubmenuBuilder::new(app, "Minmark")
                 .about(Some(AboutMetadataBuilder::new().build()))
                 .separator()
                 .item(&settings_item)
@@ -114,6 +139,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_cwd,
+            frontend_ready,
             fs_ops::list_directory,
             fs_ops::read_file,
             fs_ops::write_file,
@@ -121,13 +147,52 @@ pub fn run() {
             settings::get_search_folders,
             settings::open_settings,
         ])
-        .on_window_event(|_window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                socket::cleanup_socket();
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Hide instead of closing — standard macOS behavior
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running pane");
+        .build(tauri::generate_context!())
+        .expect("error while building minmark");
+
+    app.run(move |app_handle, event| match &event {
+        tauri::RunEvent::Reopen { .. } => {
+            if let Some(w) = app_handle.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
+        tauri::RunEvent::Opened { urls } => {
+            for url in urls {
+                let path = if url.scheme() == "file" {
+                    url.to_file_path().ok().map(|p| p.to_string_lossy().to_string())
+                } else {
+                    None
+                };
+                if let Some(path) = path {
+                    if let Some(ready_state) = app_handle.try_state::<socket::FrontendReady>() {
+                        if ready_state.0.load(Ordering::Relaxed) {
+                            let _ = app_handle.emit("open-file", &path);
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        } else if let Some(pending) = app_handle.try_state::<PendingFiles>() {
+                            if let Ok(mut files) = pending.0.lock() {
+                                files.push(path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        tauri::RunEvent::ExitRequested { .. } => {
+            socket::cleanup_socket();
+        }
+        _ => {}
+    });
 }
 
 struct WorkingDir(String);
