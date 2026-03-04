@@ -3,6 +3,7 @@ mod settings;
 mod socket;
 mod watcher;
 
+use fs_ops::FileIndex;
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Emitter, Manager};
 
@@ -37,9 +38,28 @@ pub fn run() {
                     }
                 });
 
-            // Start file watcher on configured search folders
+            // Create file index and build in background
+            let file_index = FileIndex::new();
+            app.manage(file_index.clone());
+
             let watch_folders = settings::get_search_folders();
-            watcher::start_watcher(handle.clone(), &watch_folders)
+
+            // Build index in background thread
+            {
+                let idx = file_index.clone();
+                let folders = watch_folders.clone();
+                let bg_handle = handle.clone();
+                std::thread::spawn(move || {
+                    let entries = fs_ops::build_index(&folders);
+                    if let Ok(mut data) = idx.0.lock() {
+                        *data = entries;
+                    }
+                    let _ = bg_handle.emit("index-ready", ());
+                });
+            }
+
+            // Start file watcher with index
+            watcher::start_watcher(handle.clone(), &watch_folders, file_index)
                 .expect("Failed to start file watcher");
 
             // Start UDS socket listener

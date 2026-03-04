@@ -1,42 +1,102 @@
+use crate::fs_ops::{FileEntry, FileIndex};
 use notify::EventKind;
 use notify_debouncer_full::{new_debouncer, notify::RecursiveMode, DebounceEventResult};
 use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-pub fn start_watcher(app: AppHandle, paths: &[String]) -> Result<(), String> {
+pub fn start_watcher(app: AppHandle, paths: &[String], index: FileIndex) -> Result<(), String> {
     let watch_paths: Vec<String> = paths.to_vec();
     let app_handle = app.clone();
 
     std::thread::spawn(move || {
         let rt_app = app_handle.clone();
+        let idx = index.clone();
         let mut debouncer = new_debouncer(
             Duration::from_millis(500),
             None,
             move |result: DebounceEventResult| match result {
                 Ok(events) => {
                     let mut changed = false;
+                    let mut modified_files: Vec<String> = Vec::new();
+                    let mut added: Vec<FileEntry> = Vec::new();
+                    let mut removed: Vec<String> = Vec::new();
+
                     for event in events.iter() {
-                        let dominated_event = &event.event;
-                        let dominated_kind = &dominated_event.kind;
-                        let dominated_paths = &dominated_event.paths;
-                        let dominated_is_relevant = dominated_paths.iter().any(|p| {
+                        let kind = &event.event.kind;
+                        let paths = &event.event.paths;
+                        let is_relevant = paths.iter().any(|p| {
                             p.extension().map(|e| e == "md").unwrap_or(false) || p.is_dir()
                         });
 
-                        if dominated_is_relevant {
-                            match dominated_kind {
-                                EventKind::Create(_)
-                                | EventKind::Remove(_)
-                                | EventKind::Modify(_) => {
-                                    changed = true;
+                        if !is_relevant {
+                            continue;
+                        }
+
+                        match kind {
+                            EventKind::Create(_) => {
+                                changed = true;
+                                for p in paths {
+                                    if p.extension().map(|e| e == "md").unwrap_or(false) {
+                                        let path_str = p.to_string_lossy().to_string();
+                                        let name = p
+                                            .file_name()
+                                            .unwrap_or_default()
+                                            .to_string_lossy()
+                                            .to_string();
+                                        added.push(FileEntry {
+                                            name,
+                                            path: path_str.clone(),
+                                        });
+                                        modified_files.push(path_str);
+                                    }
                                 }
-                                _ => {}
+                            }
+                            EventKind::Remove(_) => {
+                                changed = true;
+                                for p in paths {
+                                    if p.extension().map(|e| e == "md").unwrap_or(false) {
+                                        let path_str = p.to_string_lossy().to_string();
+                                        removed.push(path_str.clone());
+                                        modified_files.push(path_str);
+                                    }
+                                }
+                            }
+                            EventKind::Modify(_) => {
+                                changed = true;
+                                for p in paths {
+                                    if p.extension().map(|e| e == "md").unwrap_or(false) {
+                                        if let Some(s) = p.to_str() {
+                                            modified_files.push(s.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    // Incremental index update
+                    if !removed.is_empty() || !added.is_empty() {
+                        if let Ok(mut data) = idx.0.lock() {
+                            if !removed.is_empty() {
+                                data.retain(|e| !removed.contains(&e.path));
+                            }
+                            for entry in added {
+                                if !data.iter().any(|e| e.path == entry.path) {
+                                    data.push(entry);
+                                }
                             }
                         }
                     }
+
                     if changed {
                         let _ = rt_app.emit("fs-changed", ());
+                    }
+                    modified_files.sort();
+                    modified_files.dedup();
+                    if !modified_files.is_empty() {
+                        let _ = rt_app.emit("files-modified", modified_files);
                     }
                 }
                 Err(errors) => {
@@ -52,7 +112,6 @@ pub fn start_watcher(app: AppHandle, paths: &[String]) -> Result<(), String> {
             let _ = debouncer.watch(Path::new(wp), RecursiveMode::Recursive);
         }
 
-        // Keep thread alive — dropping debouncer stops watching
         loop {
             std::thread::sleep(Duration::from_secs(3600));
         }

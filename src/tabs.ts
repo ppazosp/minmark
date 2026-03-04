@@ -92,6 +92,34 @@ function onContentChanged(path: string, markdown: string) {
   tab.unsaved = true;
 }
 
+export async function reloadTabFromDisk(path: string) {
+  const tab = tabs.find((t) => t.path === path);
+  if (!tab) return;
+  if (tab.unsaved) return; // don't overwrite unsaved local changes
+
+  const content = await invoke<string>("read_file", { path });
+  if (content === tab.content) return; // no actual change
+
+  tab.content = content;
+
+  // If this tab is currently active, re-render it
+  if (activeTabPath === path) {
+    const container = document.getElementById("editor-container")!;
+    const source = document.getElementById("source-editor") as HTMLTextAreaElement;
+
+    if (sourceMode) {
+      source.value = content;
+    } else {
+      destroyEditor();
+      while (container.firstChild) container.removeChild(container.firstChild);
+      const dir = path.substring(0, path.lastIndexOf("/"));
+      createEditor(container, content, dir, (markdown) => {
+        onContentChanged(path, markdown);
+      });
+    }
+  }
+}
+
 export async function saveActiveTab() {
   if (!activeTabPath) return;
   const tab = tabs.find((t) => t.path === activeTabPath);

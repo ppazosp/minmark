@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { openFile, closeActiveTab, saveActiveTab, focusEditor, toggleSwitcher, handleSwitcherKeydown, handleSwitcherKeyup, toggleSourceMode, initSourceEditor } from "./tabs";
+import { openFile, closeActiveTab, saveActiveTab, reloadTabFromDisk, focusEditor, toggleSwitcher, handleSwitcherKeydown, handleSwitcherKeyup, toggleSourceMode, initSourceEditor } from "./tabs";
 import { initQuickOpen, toggleQuickOpen } from "./quickopen";
 import "prosemirror-view/style/prosemirror.css";
 import "prosemirror-gapcursor/style/gapcursor.css";
@@ -36,6 +36,12 @@ async function init() {
 
   await listen<string>("open-file", (event) => {
     openFile(event.payload);
+  });
+
+  await listen<string[]>("files-modified", (event) => {
+    for (const path of event.payload) {
+      reloadTabFromDisk(path);
+    }
   });
 
   await listen("open-settings", () => {
