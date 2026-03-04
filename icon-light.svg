@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Markdown M - black for light mode -->
+  <path d="
+    M 180,760
+    L 180,264
+    L 340,264
+    L 512,500
+    L 684,264
+    L 844,264
+    L 844,760
+    L 716,760
+    L 716,440
+    L 512,680
+    L 308,440
+    L 308,760
+    Z
+  " fill="#000000" />
+</svg>
