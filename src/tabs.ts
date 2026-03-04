@@ -16,6 +16,13 @@ interface Tab {
 let tabs: Tab[] = [];
 let activeTabPath: string | null = null;
 
+// --- View mode ---
+let sourceMode = false;
+
+// --- Switcher state ---
+let switcherOpen = false;
+let switcherIndex = 0;
+
 export async function openFile(path: string) {
   const existing = tabs.find((t) => t.path === path);
   if (existing) {
@@ -29,43 +36,60 @@ export async function openFile(path: string) {
   switchTab(path);
 }
 
-function switchTab(path: string) {
-  if (activeTabPath) {
-    const current = tabs.find((t) => t.path === activeTabPath);
-    if (current) {
-      const md = getMarkdownFromView();
-      if (md !== null) current.content = md;
-    }
+function syncCurrentTabContent() {
+  if (!activeTabPath) return;
+  const tab = tabs.find((t) => t.path === activeTabPath);
+  if (!tab) return;
+
+  if (sourceMode) {
+    const source = document.getElementById("source-editor") as HTMLTextAreaElement;
+    tab.content = source.value;
+  } else {
+    const md = getMarkdownFromView();
+    if (md !== null) tab.content = md;
   }
+}
+
+function switchTab(path: string) {
+  syncCurrentTabContent();
 
   activeTabPath = path;
-  renderTabs();
 
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
 
   const container = document.getElementById("editor-container")!;
+  const source = document.getElementById("source-editor") as HTMLTextAreaElement;
   const empty = document.getElementById("editor-empty")!;
 
-  container.classList.add("visible");
   empty.classList.add("hidden");
 
-  destroyEditor();
-  while (container.firstChild) container.removeChild(container.firstChild);
+  if (sourceMode) {
+    container.classList.remove("visible");
+    source.classList.remove("hidden");
+    source.value = tab.content;
+    destroyEditor();
+    while (container.firstChild) container.removeChild(container.firstChild);
+    source.setSelectionRange(0, 0);
+    source.focus({ preventScroll: true });
+  } else {
+    source.classList.add("hidden");
+    container.classList.add("visible");
+    destroyEditor();
+    while (container.firstChild) container.removeChild(container.firstChild);
 
-  createEditor(container, tab.content, (markdown) => {
-    onContentChanged(path, markdown);
-  });
+    const dir = path.substring(0, path.lastIndexOf("/"));
+    createEditor(container, tab.content, dir, (markdown) => {
+      onContentChanged(path, markdown);
+    });
+  }
 }
 
 function onContentChanged(path: string, markdown: string) {
   const tab = tabs.find((t) => t.path === path);
   if (!tab) return;
   tab.content = markdown;
-  if (!tab.unsaved) {
-    tab.unsaved = true;
-    renderTabs();
-  }
+  tab.unsaved = true;
 }
 
 export async function saveActiveTab() {
@@ -73,13 +97,11 @@ export async function saveActiveTab() {
   const tab = tabs.find((t) => t.path === activeTabPath);
   if (!tab || !tab.unsaved) return;
 
-  const md = getMarkdownFromView();
-  if (md !== null) tab.content = md;
+  syncCurrentTabContent();
 
   try {
     await invoke("write_file", { path: tab.path, content: tab.content });
     tab.unsaved = false;
-    renderTabs();
   } catch (e) {
     console.error("Failed to save:", e);
   }
@@ -107,43 +129,152 @@ function closeTab(path: string) {
       container.classList.remove("visible");
       while (container.firstChild) container.removeChild(container.firstChild);
       document.getElementById("editor-empty")!.classList.remove("hidden");
-      renderTabs();
     }
-  } else {
-    renderTabs();
   }
 }
 
-function renderTabs() {
-  const tabBar = document.getElementById("tab-bar")!;
-  while (tabBar.firstChild) tabBar.removeChild(tabBar.firstChild);
+// --- Switcher ---
 
-  for (const tab of tabs) {
-    const tabEl = document.createElement("div");
-    tabEl.className = `tab${tab.path === activeTabPath ? " active" : ""}${tab.unsaved ? " unsaved" : ""}`;
+function renderSwitcher() {
+  const row = document.getElementById("switcher-row")!;
+  while (row.firstChild) row.removeChild(row.firstChild);
 
-    const dot = document.createElement("span");
-    dot.className = "unsaved-dot";
-    tabEl.appendChild(dot);
+  tabs.forEach((tab, i) => {
+    const card = document.createElement("div");
+    card.className = `switcher-card${i === switcherIndex ? " selected" : ""}`;
 
-    const label = document.createElement("span");
-    label.textContent = tab.name;
-    tabEl.appendChild(label);
+    const preview = document.createElement("div");
+    preview.className = "switcher-preview";
+    preview.textContent = tab.content.slice(0, 400);
+    card.appendChild(preview);
 
-    const closeBtn = document.createElement("span");
-    closeBtn.className = "close-btn";
-    closeBtn.textContent = "\u00d7";
-    closeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      closeTab(tab.path);
+    const label = document.createElement("div");
+    label.className = "switcher-label";
+    if (tab.unsaved) {
+      const dot = document.createElement("span");
+      dot.className = "unsaved-dot";
+      label.appendChild(dot);
+    }
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = tab.name;
+    label.appendChild(nameSpan);
+    card.appendChild(label);
+
+    card.addEventListener("click", () => {
+      switcherIndex = i;
+      closeSwitcher(true);
     });
-    tabEl.appendChild(closeBtn);
 
-    tabEl.addEventListener("click", () => switchTab(tab.path));
-    tabBar.appendChild(tabEl);
+    row.appendChild(card);
+  });
+
+  // Scroll selected card into view
+  const selected = row.children[switcherIndex] as HTMLElement | undefined;
+  selected?.scrollIntoView({ block: "nearest", inline: "center" });
+}
+
+export function toggleSwitcher() {
+  if (tabs.length === 0) return;
+
+  if (switcherOpen) {
+    // Cmd still held, T pressed again — cycle forward
+    switcherIndex = (switcherIndex + 1) % tabs.length;
+    renderSwitcher();
+  } else {
+    // Open with next file pre-selected
+    const activeIdx = tabs.findIndex((t) => t.path === activeTabPath);
+    switcherIndex = tabs.length > 1 ? (activeIdx + 1) % tabs.length : 0;
+    switcherOpen = true;
+    document.getElementById("switcher-overlay")!.classList.remove("hidden");
+    renderSwitcher();
   }
+}
+
+function closeSwitcher(confirm: boolean) {
+  if (!switcherOpen) return;
+  switcherOpen = false;
+  document.getElementById("switcher-overlay")!.classList.add("hidden");
+  if (confirm && tabs[switcherIndex]) {
+    switchTab(tabs[switcherIndex].path);
+  }
+  focusProseMirror();
+}
+
+export function handleSwitcherKeydown(e: KeyboardEvent): boolean {
+  if (!switcherOpen) return false;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeSwitcher(false);
+    return true;
+  }
+  return false;
+}
+
+export function handleSwitcherKeyup(e: KeyboardEvent) {
+  if (!switcherOpen) return;
+  // Releasing Cmd (Meta) or Ctrl confirms the selection
+  if (e.key === "Meta" || e.key === "Control") {
+    closeSwitcher(true);
+  }
+}
+
+// --- Source mode toggle ---
+
+function getScrollRatio(): number {
+  if (sourceMode) {
+    const source = document.getElementById("source-editor") as HTMLTextAreaElement;
+    const max = source.scrollHeight - source.clientHeight;
+    return max > 0 ? source.scrollTop / max : 0;
+  } else {
+    const container = document.getElementById("editor-container")!;
+    const max = container.scrollHeight - container.clientHeight;
+    return max > 0 ? container.scrollTop / max : 0;
+  }
+}
+
+function setScrollRatio(ratio: number) {
+  requestAnimationFrame(() => {
+    if (sourceMode) {
+      const source = document.getElementById("source-editor") as HTMLTextAreaElement;
+      source.scrollTop = ratio * (source.scrollHeight - source.clientHeight);
+    } else {
+      const container = document.getElementById("editor-container")!;
+      container.scrollTop = ratio * (container.scrollHeight - container.clientHeight);
+    }
+  });
+}
+
+export function toggleSourceMode() {
+  if (!activeTabPath) return;
+
+  const ratio = getScrollRatio();
+  syncCurrentTabContent();
+  sourceMode = !sourceMode;
+
+  // Re-render the current tab in the new mode
+  const path = activeTabPath;
+  activeTabPath = null;
+  switchTab(path);
+  setScrollRatio(ratio);
+}
+
+export function initSourceEditor() {
+  const source = document.getElementById("source-editor") as HTMLTextAreaElement;
+  source.addEventListener("input", () => {
+    if (!activeTabPath) return;
+    const tab = tabs.find((t) => t.path === activeTabPath);
+    if (tab) {
+      tab.content = source.value;
+      tab.unsaved = true;
+    }
+  });
 }
 
 export function focusEditor() {
-  focusProseMirror();
+  if (sourceMode) {
+    (document.getElementById("source-editor") as HTMLTextAreaElement).focus();
+  } else {
+    focusProseMirror();
+  }
 }

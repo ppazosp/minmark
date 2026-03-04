@@ -1,15 +1,36 @@
 import { EditorState } from "prosemirror-state";
-import { EditorView } from "prosemirror-view";
+import { EditorView, NodeView } from "prosemirror-view";
+import { Node as PMNode } from "prosemirror-model";
 import { schema } from "./schema";
 import { buildPlugins } from "./plugins";
 import { parseMarkdown, serializeMarkdown } from "./markdown";
 import { MermaidNodeView } from "./mermaid";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 let currentView: EditorView | null = null;
+
+class ImageNodeView implements NodeView {
+  dom: HTMLElement;
+
+  constructor(node: PMNode, baseDir: string) {
+    const img = document.createElement("img");
+    const src = node.attrs.src || "";
+    if (src && !src.startsWith("http") && !src.startsWith("data:") && !src.startsWith("asset")) {
+      const abs = src.startsWith("/") ? src : baseDir + "/" + src;
+      img.src = convertFileSrc(abs);
+    } else {
+      img.src = src;
+    }
+    if (node.attrs.alt) img.alt = node.attrs.alt;
+    if (node.attrs.title) img.title = node.attrs.title;
+    this.dom = img;
+  }
+}
 
 export function createEditor(
   container: HTMLElement,
   content: string,
+  baseDir: string,
   onChange: (markdown: string) => void
 ): EditorView {
   destroyEditor();
@@ -38,6 +59,9 @@ export function createEditor(
           return new MermaidNodeView(node, view, getPos);
         }
         return undefined as any;
+      },
+      image(node) {
+        return new ImageNodeView(node, baseDir);
       },
     },
     attributes: { class: "pane-editor" },
