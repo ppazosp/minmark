@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 
 interface FileEntry {
   name: string;
@@ -15,12 +14,12 @@ interface CachedEntry {
 
 const MAX_RENDERED = 50;
 
-// --- Cache ---
+// Cache lives only across one quickopen session — re-walked on each open so
+// new files show up without needing a background watcher.
 let cachedFiles: CachedEntry[] | null = null;
 let homeDir = "";
 
-async function getFiles(): Promise<CachedEntry[]> {
-  if (cachedFiles) return cachedFiles;
+async function fetchFiles(): Promise<CachedEntry[]> {
   try {
     const folders = await invoke<string[]>("get_search_folders");
     if (!homeDir && folders.length > 0) {
@@ -28,20 +27,21 @@ async function getFiles(): Promise<CachedEntry[]> {
       if (m) homeDir = m[1];
     }
     const raw = await invoke<FileEntry[]>("search_files");
-    cachedFiles = raw.map((f) => ({
+    return raw.map((f) => ({
       name: f.name,
       path: f.path,
       nameLower: f.name.toLowerCase(),
       pathLower: f.path.toLowerCase(),
     }));
   } catch {
-    cachedFiles = [];
+    return [];
   }
-  return cachedFiles;
 }
 
-function invalidateCache() {
-  cachedFiles = null;
+async function getFiles(): Promise<CachedEntry[]> {
+  if (cachedFiles) return cachedFiles;
+  cachedFiles = await fetchFiles();
+  return cachedFiles;
 }
 
 // --- State ---
@@ -56,14 +56,6 @@ let usingKeyboard = false;
 
 export function initQuickOpen(selectCallback: (path: string) => void) {
   onSelect = selectCallback;
-
-  listen("fs-changed", () => {
-    invalidateCache();
-    if (isOpen) {
-      const input = document.getElementById("quickopen-input") as HTMLInputElement;
-      filterFiles(input.value);
-    }
-  });
 
   const overlay = document.getElementById("quickopen-overlay")!;
   const input = document.getElementById("quickopen-input") as HTMLInputElement;
@@ -139,7 +131,9 @@ async function openQuickOpen() {
   input.value = "";
   selectedIndex = 0;
 
-  filteredFiles = await getFiles();
+  // Refresh on each open so newly created files show up without a watcher.
+  cachedFiles = await fetchFiles();
+  filteredFiles = cachedFiles;
   renderList();
   input.focus();
 }

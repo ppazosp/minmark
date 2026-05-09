@@ -1,15 +1,22 @@
 mod fs_ops;
 mod settings;
 mod socket;
-mod watcher;
 
-use fs_ops::FileIndex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Emitter, Manager};
 
 struct PendingFiles(Mutex<Vec<String>>);
+
+// Apple Events for file-association cold launches can fire BEFORE setup()
+// has run app.manage(PendingFiles(...)), so we need a buffer that exists
+// before any Tauri state is set up. Setup() drains this into PendingFiles.
+static EARLY_PENDING: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+
+fn early_pending() -> &'static Mutex<Vec<String>> {
+    EARLY_PENDING.get_or_init(|| Mutex::new(Vec::new()))
+}
 
 #[tauri::command]
 fn get_cwd(state: tauri::State<'_, WorkingDir>) -> String {
@@ -55,34 +62,17 @@ pub fn run() {
                 }
             });
 
-            // Create file index and build in background
-            let file_index = FileIndex::new();
-            app.manage(file_index.clone());
-
-            let watch_folders = settings::get_search_folders();
-
-            // Build index in background thread
-            {
-                let idx = file_index.clone();
-                let folders = watch_folders.clone();
-                let bg_handle = handle.clone();
-                std::thread::spawn(move || {
-                    let entries = fs_ops::build_index(&folders);
-                    if let Ok(mut data) = idx.0.lock() {
-                        *data = entries;
-                    }
-                    let _ = bg_handle.emit("index-ready", ());
-                });
-            }
-
-            // Start file watcher with index
-            watcher::start_watcher(handle.clone(), &watch_folders, file_index)
-                .expect("Failed to start file watcher");
-
             // Frontend-ready flag for socket listener
             let ready = Arc::new(AtomicBool::new(false));
             app.manage(socket::FrontendReady(ready.clone()));
-            app.manage(PendingFiles(Mutex::new(Vec::new())));
+
+            // Drain anything that arrived via Apple Events before setup ran
+            // (cold-launch via Finder file association on macOS).
+            let mut initial = Vec::new();
+            if let Ok(mut early) = early_pending().lock() {
+                initial.extend(early.drain(..));
+            }
+            app.manage(PendingFiles(Mutex::new(initial)));
 
             // Start UDS socket listener
             socket::start_socket_listener(handle.clone(), ready);
@@ -171,18 +161,29 @@ pub fn run() {
                     None
                 };
                 if let Some(path) = path {
-                    if let Some(ready_state) = app_handle.try_state::<socket::FrontendReady>() {
-                        if ready_state.0.load(Ordering::Relaxed) {
-                            // Show window before emitting so the webview is active when
-                            // ProseMirror renders the file.
+                    let state = app_handle.try_state::<socket::FrontendReady>();
+                    match state {
+                        Some(ready_state) if ready_state.0.load(Ordering::Relaxed) => {
+                            // Frontend is up — show + emit directly.
                             if let Some(w) = app_handle.get_webview_window("main") {
                                 let _ = w.show();
                                 let _ = w.set_focus();
                             }
                             let _ = app_handle.emit("open-file", &path);
-                        } else if let Some(pending) = app_handle.try_state::<PendingFiles>() {
-                            if let Ok(mut files) = pending.0.lock() {
-                                files.push(path);
+                        }
+                        Some(_) => {
+                            // Setup ran but frontend hasn't called frontend_ready yet.
+                            if let Some(pending) = app_handle.try_state::<PendingFiles>() {
+                                if let Ok(mut files) = pending.0.lock() {
+                                    files.push(path);
+                                }
+                            }
+                        }
+                        None => {
+                            // Setup hasn't run yet (Apple Event arrived during launch).
+                            // Park in the static buffer; setup() will drain it.
+                            if let Ok(mut early) = early_pending().lock() {
+                                early.push(path);
                             }
                         }
                     }

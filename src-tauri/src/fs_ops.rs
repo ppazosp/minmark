@@ -1,31 +1,9 @@
+use crate::settings;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
-const MAX_DEPTH: u32 = 6;
-
-// --- In-memory file index ---
-#[derive(Clone)]
-pub struct FileIndex(pub Arc<Mutex<Vec<FileEntry>>>);
-
-impl FileIndex {
-    pub fn new() -> Self {
-        FileIndex(Arc::new(Mutex::new(Vec::new())))
-    }
-}
-
-/// Build the full index by walking all search folders.
-pub fn build_index(folders: &[String]) -> Vec<FileEntry> {
-    let mut results = Vec::new();
-    for folder in folders {
-        let p = Path::new(folder);
-        if p.exists() {
-            collect_md_files(p, 0, &mut results);
-        }
-    }
-    results
-}
+const MAX_DEPTH: u32 = 12;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +26,12 @@ fn should_include(path: &Path, is_dir: bool) -> bool {
                 | "target"
                 | "dist"
                 | "build"
+                | ".cache"
+                | ".next"
+                | ".turbo"
+                | ".venv"
+                | "venv"
+                | "__pycache__"
                 | "Library"
                 | "Applications"
                 | "Pictures"
@@ -102,10 +86,7 @@ fn build_tree(path: &Path, depth: u32) -> Option<Vec<DirEntry>> {
         }
     }
 
-    result.sort_by(|a, b| {
-        // Dirs first, then alphabetical
-        b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name))
-    });
+    result.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
 
     Some(result)
 }
@@ -156,9 +137,16 @@ fn collect_md_files(dir: &Path, depth: u32, out: &mut Vec<FileEntry>) {
 }
 
 #[tauri::command]
-pub fn search_files(index: tauri::State<'_, FileIndex>) -> Vec<FileEntry> {
-    let data = index.0.lock().unwrap();
-    data.clone()
+pub fn search_files() -> Vec<FileEntry> {
+    let folders = settings::get_search_folders();
+    let mut results = Vec::new();
+    for folder in &folders {
+        let p = Path::new(folder);
+        if p.exists() {
+            collect_md_files(p, 0, &mut results);
+        }
+    }
+    results
 }
 
 #[tauri::command]
