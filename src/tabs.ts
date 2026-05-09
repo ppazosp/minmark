@@ -34,7 +34,37 @@ export async function openFile(path: string) {
   const content = await invoke<string>("read_file", { path });
   const name = path.split("/").pop() || path;
   tabs.push({ path, name, content, savedContent: content, unsaved: false });
+  // Watch this file for external changes (live-reload).
+  invoke("watch_file", { path }).catch(() => {});
   switchTab(path);
+}
+
+export async function reloadTabFromDisk(path: string) {
+  const tab = tabs.find((t) => t.path === path);
+  if (!tab) return;
+  if (tab.unsaved) return; // don't overwrite unsaved local changes
+
+  const content = await invoke<string>("read_file", { path });
+  if (content === tab.content) return; // no actual change (likely our own write)
+
+  tab.content = content;
+  tab.savedContent = content;
+
+  if (activeTabPath === path) {
+    const container = document.getElementById("editor-container")!;
+    const source = document.getElementById("source-editor") as HTMLTextAreaElement;
+
+    if (sourceMode) {
+      source.value = content;
+    } else {
+      destroyEditor();
+      while (container.firstChild) container.removeChild(container.firstChild);
+      const dir = path.substring(0, path.lastIndexOf("/"));
+      createEditor(container, content, dir, (markdown) => {
+        onContentChanged(path, markdown);
+      });
+    }
+  }
 }
 
 function syncCurrentTabContent() {
@@ -132,6 +162,7 @@ function closeTab(path: string) {
   if (idx === -1) return;
 
   tabs.splice(idx, 1);
+  invoke("unwatch_file", { path }).catch(() => {});
 
   if (activeTabPath === path) {
     if (tabs.length > 0) {

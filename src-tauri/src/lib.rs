@@ -1,6 +1,7 @@
 mod fs_ops;
 mod settings;
 mod socket;
+mod tab_watcher;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -61,6 +62,9 @@ pub fn run() {
                     dir.to_string_lossy().to_string()
                 }
             });
+
+            // Per-tab file watcher (subscribes only to currently-open files)
+            tab_watcher::install(app).expect("Failed to install tab watcher");
 
             // Frontend-ready flag for socket listener
             let ready = Arc::new(AtomicBool::new(false));
@@ -133,6 +137,8 @@ pub fn run() {
             fs_ops::search_files,
             settings::get_search_folders,
             settings::open_settings,
+            tab_watcher::watch_file,
+            tab_watcher::unwatch_file,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
